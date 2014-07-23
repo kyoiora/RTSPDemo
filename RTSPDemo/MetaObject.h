@@ -160,6 +160,7 @@ class RZThread
 {
 public:
 	void StartThread();
+	static void WaitPeerThreadStop(const RZThread&);
 	inline unsigned long GetCurrentThreadID() const;
 
 private:

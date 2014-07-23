@@ -6,7 +6,7 @@
 
 const std::string CRTPSSRC = "HP StreamMedia";
 #ifdef WIN32
-const std::string CAudioFrame = "e:\\OutputDir\\AudioFrame.aac";
+const std::string CAudioFrame = "e:\\OutputDir\\AudioFrame.mp3";
 const std::string CVideoFrame = "e:\\OutputDir\\VideoFrame.h264";
 #endif
 
@@ -175,6 +175,7 @@ void RZRTCPAgent::OnResponseBYE()
 {
 	m_rPacket.bGetLastPack = true;
 	m_pRTPAgent->m_stMediaInfo.iPackNum = m_rPacket.stSRHdr.stSendInfo.PacketCount;
+	m_pRTPAgent->m_bWantToStop = true;
 }
 
 void RZRTCPAgent::ThreadProc()
@@ -185,10 +186,13 @@ void RZRTCPAgent::ThreadProc()
 
 	while (!m_rPacket.bGetLastPack)
 	{
-		RecvPeerData();			//接收数据并解析
+		RecvPeerData();
 		SetReportBlocks();		//设置报告块
-		if (m_rPacket.bGetLastPack)
+		if (m_rPacket.stSRHdr.stSendInfo.PacketCount == m_rPacket.ulLSRPackCnt && m_rPacket.ulLSRPackCnt)
+		{
 			iSize += sizeof(RTCP_BYEHeader);
+			OnResponseBYE();
+		}
 		m_pNetConn->SendDataToPeer((char*)&m_sPacket, iSize);		//发送接收报告
 	}
 	printf("[Thread] RTCPAgent has received the last packet, exit normally.\n");
@@ -257,18 +261,20 @@ std::vector<RZNetStrPool*> RZCyclePool::GetValidPool() const
 
 //////////////////////////////////////////////////////////////////////////
 //RZRTPAgent类
+RZSemaphore RZRTPAgent::m_Semaphore(1, 1);
+
 RZRTPAgent::RZRTPAgent(STREAM_MEDIA_TYPE _eMediaType /* = ENUM_MEDIA_UNK */)
 :RZAgent(new RZUdpConn),
  m_eMediaType(_eMediaType),
  m_stMediaInfo(),
  m_stCyclePool(),
  m_stLostPackStatis(),
- m_RTCPAgent(this),
+ m_pRTCPAgent(NULL),
  m_pFrameFile(NULL),
- m_hRTP2Frame(*this),
- m_bWantToStop(false)
+ m_pRTP2Frame(NULL),
+ m_bWantToStop(false),
+ m_ConsoleOutput()
 {
-	InitListenPort();
 	if (m_eMediaType != ENUM_MEDIA_UNK)
 	{
 		const char* pFileName = (m_eMediaType == ENUM_AUDIO)?CAudioFrame.c_str():CVideoFrame.c_str();
@@ -276,8 +282,15 @@ RZRTPAgent::RZRTPAgent(STREAM_MEDIA_TYPE _eMediaType /* = ENUM_MEDIA_UNK */)
 		if (m_pFrameFile == NULL)
 			Log::ERR("C Standard Library \'fopen\' called failed.\n");
 	}
+	m_pRTCPAgent = new RZRTCPAgent(this);
+	if (m_pRTCPAgent == NULL)
+		Log::ERR("New RTCPAgent Object failed.\n");
+	m_pRTP2Frame = new H264RTP2Frame(*this);
+	if (m_pRTP2Frame == NULL)
+		Log::ERR("New H264RTP2Frame Object failed.\n");
+	m_pRTP2Frame->Open();
 	m_stLostPackStatis.iEnd = CPoolSlots;
-	m_hRTP2Frame.Open();
+	InitListenPort();
 }
 
 RZRTPAgent::~RZRTPAgent()
@@ -299,7 +312,7 @@ void RZRTPAgent::InitListenPort()
 	} while (!nRTCPPort.PortValid());
 
 	this->SetLocalPort(nRTPPort);
-	m_RTCPAgent.SetLocalPort(nRTCPPort);
+	m_pRTCPAgent->SetLocalPort(nRTCPPort);
 }
 
 void RZRTPAgent::SetMediaType(STREAM_MEDIA_TYPE _eMediaType)
@@ -330,46 +343,68 @@ void RZRTPAgent::SetServerIPAndPort(const RZNetIPAddr& _nIPAddr, const std::stri
 	RZNetPort nRTPPort(RZTypeConvert::StrToInt(vPortList[0], 10), ENUM_UDP);
 	RZNetPort nRTCPPort(RZTypeConvert::StrToInt(vPortList[1], 10), ENUM_UDP);
 	this->ConnetToPeer(_nIPAddr, nRTPPort);
-	m_RTCPAgent.ConnetToPeer(_nIPAddr, nRTCPPort);
+	m_pRTCPAgent->ConnetToPeer(_nIPAddr, nRTCPPort);
 }
 
 void RZRTPAgent::ThreadProc()
 {
 	printf("[Thread]RTPAgent has start successfully, it is receiving Real-Time packets from server ...\n");
 	m_pNetConn->SetSysRecvBufSize(CSysRecvBufSize);
-	m_RTCPAgent.StartThread();	
+	m_Semaphore.Wait();
+	if (m_eMediaType == ENUM_AUDIO)
+	{
+		printf("[Thread]receiving AUDIO data packet, receiving numbers:\t");
+		m_ConsoleOutput.GetCursorPosition();
+		printf("\n");
+	}
+	else		//m_eMediaType== ENUM_VIDEO
+	{
+		printf("[Thread]receiving VIDEO data packet, receiving numbers:\t");
+		m_ConsoleOutput.GetCursorPosition();
+		printf("\n");
+	}
+	m_Semaphore.Release();
+	m_pRTCPAgent->StartThread();
 
 	RZNetStrPool* pNetStrPool = NULL;
 	while (!m_bWantToStop)
 	{
-		RecvPeerData();
+		RecvPeerData(ENUM_ASYN);
 		pNetStrPool = m_stCyclePool.GetFocusPool();
 		if (pNetStrPool != NULL)
-			OnSinglePool(&m_hRTP2Frame, pNetStrPool);
+			OnSinglePool(pNetStrPool);
 		if (m_stLostPackStatis.uThresHold != 0)
 			RemvLostPack();
 	}
-	FlushCyclePool(&m_hRTP2Frame);
+	FlushCyclePool();
 	m_stMediaInfo.bRecvAll = true;
-	m_hRTP2Frame.Close();
+	m_pRTP2Frame->Close();
+	WaitPeerThreadStop(*m_pRTCPAgent);
 	printf("[Thread] Receive Real-Time Stream File Complete! Exit normally.\n");
 }
 
-void RZRTPAgent::ParsePacket(const char* _pBuffer, unsigned long _ulSize)
+void RZRTPAgent::ParsePacket(const char* pBuffer, unsigned long ulSize)
 {
-	if (_ulSize < 12)			//RTP头部至少有12个字节，所以一个udp数据包应>=12
+	if (ulSize < 12)			//RTP头部至少有12个字节，所以一个udp数据包应>=12
 		return;
 
 	RTPHeader stRTPHdr;
-	stRTPHdr.uFirByte.theWholeByte = _pBuffer[0];		//1
-	stRTPHdr.uSecByte.theWholeByte = _pBuffer[1];		//1+1
-	stRTPHdr.SeqNum = ::ntohs(*(unsigned short*)(&_pBuffer[2]));		//2+2
-	stRTPHdr.TimeStamp = ::ntohl(*(unsigned long*)(&_pBuffer[4]));	//4+4
-	stRTPHdr.SSRC = ::ntohl(*(unsigned long*)(&_pBuffer[8]));		//8+4
+	stRTPHdr.uFirByte.theWholeByte = pBuffer[0];		//1
+	stRTPHdr.uSecByte.theWholeByte = pBuffer[1];		//1+1
+	stRTPHdr.SeqNum = ::ntohs(*(unsigned short*)(&pBuffer[2]));		//2+2
+	stRTPHdr.TimeStamp = ::ntohl(*(unsigned long*)(&pBuffer[4]));	//4+4
+	stRTPHdr.SSRC = ::ntohl(*(unsigned long*)(&pBuffer[8]));		//8+4
+	if (m_eMediaType == ENUM_AUDIO)		//对于音频包去头部和填充
+	{
+		if (stRTPHdr.uFirByte.bField.P)
+			ulSize -= pBuffer[ulSize-1];
+		ulSize -= 16;		//Live555会有16个字节的填充，但在P位并未明确指明
+		pBuffer = pBuffer+12+4;		//Live555要多去4个字节
+	}
 	if (stRTPHdr.uFirByte.bField.V == 2 /*&& stRTPHdr.SSRC == stMediaInfo.ulSSRC*/)
 	{
 		//检查RTP协议的版本和包的同步源标识符，并且没有去头部和填充
-		m_stCyclePool.Insert(stRTPHdr.SeqNum, _pBuffer, _ulSize);
+		m_stCyclePool.Insert(stRTPHdr.SeqNum, pBuffer, ulSize);
 		if (m_stLostPackStatis.ulFirSeqWallClck != 0)		//由RTCP设置
 		{
 			unsigned long uClckTmDiff = RZTime::GetWallClockTime()-m_stLostPackStatis.ulFirSeqWallClck;		//ms
@@ -395,30 +430,39 @@ void RZRTPAgent::RemvLostPack()
 	m_stLostPackStatis.mSemaphore.Release();
 }
 
-void RZRTPAgent::OnSinglePool(H264RTP2Frame* _pRTP2Frame, const RZNetStrPool* _pNetStrPool)
+void RZRTPAgent::OnSinglePool(const RZNetStrPool* pNetStrPool)
 {
-	BufferPool stLocalPool = _pNetStrPool->GetBufferPool();
+	BufferPool stLocalPool = pNetStrPool->GetBufferPool();
+	m_stLostPackStatis.nRecvPacks += pNetStrPool->GetItems();
 	m_stLostPackStatis.mSemaphore.Wait();
 	for (unsigned long i = m_stLostPackStatis.iStart; i != m_stLostPackStatis.iEnd; i++)
 	{
-		if (stLocalPool.pSize[i] != 0 && _pRTP2Frame)
-			_pRTP2Frame->OnRecvdRTPPacket(stLocalPool.pBufferPool+i*CPoolSlotSize, 
-																			stLocalPool.pSize[i]);
+		if (stLocalPool.pSize[i] != 0)
+		{
+			if (m_eMediaType == ENUM_VIDEO)
+				m_pRTP2Frame->OnRecvdRTPPacket(stLocalPool.pBufferPool+i*CPoolSlotSize, 
+																				stLocalPool.pSize[i]);
+			else //m_eMediaType == ENUM_AUDIO
+				WriteMediaFile(stLocalPool.pBufferPool+i*CPoolSlotSize, stLocalPool.pSize[i]);
+		}
 		else			//stLocalPool.pSize[i] == 0，丢包
 			m_stLostPackStatis.vLostPack.push_back(m_stLostPackStatis.nHndleCnt);
 		m_stLostPackStatis.nHndleCnt++;
 	}
 	m_stCyclePool.UpdateFocusPool();
 	m_stLostPackStatis.mSemaphore.Release();
+	m_Semaphore.Wait();
+	m_ConsoleOutput.OutputCharacter("%6d", m_stLostPackStatis.nRecvPacks);
+	m_Semaphore.Release();
 	m_stLostPackStatis.iStart = 0;
 }
 
 void RZRTPAgent::OnH264RTP2FrameCallbackFramePacket(H264RTP2Frame*pH264RTP2Frame,void*pPacketData,int nPacketLen,int nKeyFrame)
 {
-	::fwrite(pPacketData, sizeof(char), nPacketLen, m_pFrameFile);
+	WriteMediaFile(pPacketData, nPacketLen);
 }
 
-void RZRTPAgent::FlushCyclePool(H264RTP2Frame* _pRTP2Frame)
+void RZRTPAgent::FlushCyclePool()
 {
 	std::vector<RZNetStrPool*> vPoolList = m_stCyclePool.GetValidPool();
 	for (std::vector<RZNetStrPool*>::const_iterator iter = vPoolList.begin();
@@ -435,6 +479,6 @@ void RZRTPAgent::FlushCyclePool(H264RTP2Frame* _pRTP2Frame)
 			}
 			m_stLostPackStatis.iEnd = index;
 		}
-		OnSinglePool(_pRTP2Frame, *iter);
+		OnSinglePool(*iter);
 	}
 }

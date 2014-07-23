@@ -254,7 +254,7 @@ RZThread::RZThread()
 RZThread::~RZThread()
 {
 #ifdef WIN32
-	::WaitForSingleObject(m_hThread, INFINITE);
+	::CloseHandle(m_hThread);
 #endif
 }
 
@@ -281,7 +281,13 @@ void RZThread::StartThread()
 			);
 		if (m_hThread == NULL)
 			Log::ERR("Creating Thread Error. Error Code: %u\n", GetLastError());
-		::CloseHandle(m_hThread);		//∑÷¿Îœﬂ≥Ã
+#endif
+}
+
+void RZThread::WaitPeerThreadStop(const RZThread& rThread)
+{
+#ifdef WIN32
+	::WaitForSingleObject(rThread.m_hThread, INFINITE);
 #endif
 }
 

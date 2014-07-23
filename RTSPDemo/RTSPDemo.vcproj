@@ -18,11 +18,11 @@
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory="../obj/RTSPDemo"
+			OutputDirectory="../bin"
 			IntermediateDirectory="../obj/RTSPDemo"
 			ConfigurationType="1"
 			UseOfMFC="0"
-			CharacterSet="1"
+			CharacterSet="2"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -178,6 +178,10 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
+				RelativePath=".\ConsoleText.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\H264RTP2Frame.cpp"
 				>
 			</File>
@@ -219,6 +223,10 @@
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
+			<File
+				RelativePath=".\ConsoleText.h"
+				>
+			</File>
 			<File
 				RelativePath=".\H264RTP2Frame.h"
 				>

@@ -7,6 +7,7 @@
 #include "MetaObject.h"
 #include "NetConn.h"
 #include "NetBase.h"
+#include "ConsoleText.h"
 #include "Logger.h"
 #include "H264RTP2Frame.h"
 
@@ -309,6 +310,7 @@ typedef struct _MediaInfo			MediaInfo;
 struct _LostPackStatis
 {
 	int iStart, iEnd;		//单个缓冲池的起始与结束位置
+	unsigned long nRecvPacks;	//实际收到的包
 	unsigned long nHndleCnt;		//已处理的包的总数
 	unsigned long uThresHold;	//当前阀值
 	std::vector<unsigned long> vLostPack;		//存放丢失的包的序列号（转换后唯一）
@@ -324,6 +326,7 @@ struct _LostPackStatis
 	_LostPackStatis()
 		:iStart(0),
 		 iEnd(0),
+		 nRecvPacks(0),
 		 nHndleCnt(0),
 		 uThresHold(0),
 		 vLostPack(),
@@ -363,20 +366,23 @@ private:
 	void ParsePacket(const char*, unsigned long);
 	void RemvPackDiff();
 	void RemvLostPack();
-	void OnSinglePool(H264RTP2Frame*, const RZNetStrPool*);
-	void FlushCyclePool(H264RTP2Frame*);
-public:
+	void OnSinglePool(const RZNetStrPool*);
+	void FlushCyclePool();
+	inline void WriteMediaFile(void* pPacketData, int nPacketLen);
 	virtual void OnH264RTP2FrameCallbackFramePacket(H264RTP2Frame*pH264RTP2Frame,void*pPacketData,int nPacketLen,int nKeyFrame);
 
 private:
 	STREAM_MEDIA_TYPE		m_eMediaType;		//当前接收的数据流的类型
-	MediaInfo				m_stMediaInfo;
-	LostPackStatis		m_stLostPackStatis;		//丢包统计
-	RZCyclePool			m_stCyclePool;
-	RZRTCPAgent		m_RTCPAgent;
-	FILE* m_pFrameFile;
-	H264RTP2Frame	 m_hRTP2Frame;
-	bool m_bWantToStop;
+	MediaInfo					m_stMediaInfo;
+	LostPackStatis			m_stLostPackStatis;		//丢包统计
+	RZCyclePool				m_stCyclePool;
+	RZRTCPAgent*			m_pRTCPAgent;
+	H264RTP2Frame*	m_pRTP2Frame;
+	FILE*	m_pFrameFile;
+	bool	m_bWantToStop;
+
+	RZConsoleOutput	m_ConsoleOutput;
+	static RZSemaphore	m_Semaphore;
 };
 
 inline RZNetPort RZRTPAgent::GetLocalPort() const
@@ -405,5 +411,10 @@ inline void RZRTPAgent::SetSSRC(unsigned long _SSRC)
 inline unsigned long RZRTPAgent::GetHiestSeqNum() const
 {
 	return (m_stMediaInfo.iFirstSeq+m_stLostPackStatis.nHndleCnt-1);
+}
+
+inline void RZRTPAgent::WriteMediaFile(void* pPacketData, int nPacketLen)
+{
+	::fwrite(pPacketData, sizeof(char), nPacketLen, m_pFrameFile);
 }
 #endif			//RTPPROTOCOL_H_

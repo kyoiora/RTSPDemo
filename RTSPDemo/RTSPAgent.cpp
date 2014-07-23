@@ -9,8 +9,6 @@ const std::string CRTSPVersion = "RTSP/1.0";
 //For RTP/AVP, the default lower-transport is UDP
 const std::string CRTSPTransSpec = "RTP/AVP";
 
-const std::string CServerIPAddr = "192.168.5.136";
-
 
 RZRTSPAgent::RZRTSPAgent()
 :RZAgent(new RZTcpConn),
@@ -240,23 +238,23 @@ void RZRTSPAgent::ParsePacket(const char* _str, unsigned long _ulSize)
 		else if	(vTextLine[0] == "Via")									m_stResPacket.stGrlHdr.ghVia =									vTextLine[1];
 		else if	(vTextLine[0] == "Scale")								m_stResPacket.stGrlHdr.ghScale =								vTextLine[1];
 		else if	(vTextLine[0] == "Session")							m_stResPacket.stGrlHdr.ghSession =							vTextLine[1];
-		else if	(vTextLine[0] == "Speed")								m_stResPacket.stGrlHdr.ghSpeed =								vTextLine[1];
+		else if	(vTextLine[0] == "Speed")								m_stResPacket.stGrlHdr.ghSpeed =							vTextLine[1];
 		else if	(vTextLine[0] == "Transport")						m_stResPacket.stGrlHdr.ghTransport =						vTextLine[1];
 		//响应报头
 		else if	(vTextLine[0] == "Allow")								m_stResPacket.stResHdr.rhAllow =								vTextLine[1];
-		else if (vTextLine[0] == "Content-Type")				m_stResPacket.stResHdr.rhContentType =					vTextLine[1];
-		else if (vTextLine[0] == "Public")								m_stResPacket.stResHdr.rhPublic =								vTextLine[1];
-		else if (vTextLine[0] == "Range")								m_stResPacket.stResHdr.rhRange =								vTextLine[1];
-		else if (vTextLine[0] == "Retry-After")						m_stResPacket.stResHdr.rhRetryAfter =						vTextLine[1];
+		else if (vTextLine[0] == "Content-Type")				m_stResPacket.stResHdr.rhContentType =				vTextLine[1];
+		else if (vTextLine[0] == "Public")								m_stResPacket.stResHdr.rhPublic =							vTextLine[1];
+		else if (vTextLine[0] == "Range")								m_stResPacket.stResHdr.rhRange =							vTextLine[1];
+		else if (vTextLine[0] == "Retry-After")						m_stResPacket.stResHdr.rhRetryAfter =					vTextLine[1];
 		else if (vTextLine[0] == "RTP-Info")							m_stResPacket.stResHdr.rhRTPInfo =							vTextLine[1];
-		else if (vTextLine[0] == "Server")								m_stResPacket.stResHdr.rhServer =								vTextLine[1];
+		else if (vTextLine[0] == "Server")								m_stResPacket.stResHdr.rhServer =							vTextLine[1];
 		else if (vTextLine[0] == "Unsupported")					m_stResPacket.stResHdr.rhUnsupported =				vTextLine[1];
-		else if (vTextLine[0] == "WWWAuthenticate")		m_stResPacket.stResHdr.rhWWWAuthenticate =		vTextLine[1];
+		else if (vTextLine[0] == "WWWAuthenticate")		m_stResPacket.stResHdr.rhWWWAuthenticate= 	vTextLine[1];
 		//实体报头
-		else if (vTextLine[0] == "Content-Base")					m_stResPacket.stEntHdr.ehContentBase =					vTextLine[1];
-		else if (vTextLine[0] == "Content-Encoding")		m_stResPacket.stEntHdr.ehContentEncoding =			vTextLine[1];
+		else if (vTextLine[0] == "Content-Base")					m_stResPacket.stEntHdr.ehContentBase =				vTextLine[1];
+		else if (vTextLine[0] == "Content-Encoding")		m_stResPacket.stEntHdr.ehContentEncoding =		vTextLine[1];
 		else if (vTextLine[0] == "Content-Language")		m_stResPacket.stEntHdr.ehContentLanguage =		vTextLine[1];
-		else if (vTextLine[0] == "Content-Length")			m_stResPacket.stEntHdr.ehContentLength =				vTextLine[1];
+		else if (vTextLine[0] == "Content-Length")			m_stResPacket.stEntHdr.ehContentLength =			vTextLine[1];
 		else if (vTextLine[0] == "Content-Location")			m_stResPacket.stEntHdr.ehContentLocation =			vTextLine[1];
 		else if (vTextLine[0] == "Expires")							m_stResPacket.stEntHdr.ehExpires =							vTextLine[1];
 		else if (vTextLine[0] == "Last-Modified")				m_stResPacket.stEntHdr.ehLastModified =				vTextLine[1];
@@ -332,7 +330,7 @@ void RZRTSPAgent::OnResponseOPTIONS()
 void RZRTSPAgent::OnResponseDESCRIBE()
 {
 	if (RZTypeConvert::StrToInt(m_stResPacket.stEntHdr.ehContentLength, 10) != m_stResPacket.strResEntity.length())
-		Log::ERR("The format of the entity in response packet is not correct.\n");		//检查Content-length报头
+		Log::ERR("The format of the entity in response packet is not correct.\n");		//检查Content-Length报头
 	if (m_stResPacket.stResHdr.rhContentType == CRTSPDesContType)		//检查Content-Type报头
 		m_sdpPacket.SetTypeValue(m_stResPacket.strResEntity);		//使用的是sdp协议
 	else ;		//使用其他协议，暂时不做任何处理
@@ -341,7 +339,10 @@ void RZRTSPAgent::OnResponseDESCRIBE()
 void RZRTSPAgent::OnResponseSETUP(int& iSETUP)
 {
 	if (m_stResPacket.stGrlHdr.ghSession != "")
-		m_stHdrCache.strSession = m_stResPacket.stGrlHdr.ghSession;
+	{
+		std::vector<std::string> vTextLine = RZStream::StreamSplit(m_stResPacket.stGrlHdr.ghSession, ";");
+		m_stHdrCache.strSession = vTextLine[0];
+	}
 
 	std::map<std::string, std::string> mFields = GetResTransFields();
 	std::string strServerPort, strSSRC;
