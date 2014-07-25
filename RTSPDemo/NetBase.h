@@ -38,7 +38,7 @@ typedef enum
 class RZNetPort 
 {
 public:
-	RZNetPort(NET_PRTTYPE);		//强制以指定协议方式初始化
+	RZNetPort(NET_PRTTYPE);
 	RZNetPort(unsigned short, NET_PRTTYPE);
 	~RZNetPort() {}
 
@@ -80,11 +80,11 @@ inline NET_PRTTYPE RZNetPort::GetPrtType() const
 	return m_ePrtType;
 }
 
-inline void RZNetPort::SetPrtType(NET_PRTTYPE _ePrtType)
+inline void RZNetPort::SetPrtType(NET_PRTTYPE ePrtType)
 {
-	if (_ePrtType == ENUM_PRT_UNK)
+	if (ePrtType == ENUM_PRT_UNK)
 		Log::ERR("Unvalid Protocol Type. Please set protocol type first.\n");
-	m_ePrtType = _ePrtType;
+	m_ePrtType = ePrtType;
 }
 
 inline unsigned short RZNetPort::GetPortValue() const
@@ -124,11 +124,11 @@ private:
 	std::string			m_strIPAddr;
 };
 
-inline void RZNetIPAddr::InitIPAddr(const std::string& _str)
+inline void RZNetIPAddr::InitIPAddr(const std::string& str)
 {
-	m_strIPAddr = _str;
+	m_strIPAddr = str;
 #ifdef WIN32
-	m_uIPAddr = ::inet_addr(_str.c_str());
+	m_uIPAddr = ::inet_addr(str.c_str());
 #endif
 }
 
@@ -172,10 +172,10 @@ private:
 	std::string m_strVersion;
 };
 
-inline void RZReqLine::SetReqLine(const std::string& _strMethod, const std::string& _strUri)
+inline void RZReqLine::SetReqLine(const std::string& strMethod, const std::string& strUri)
 {
-	m_strMethod = _strMethod;
-	m_strUri = _strUri;
+	m_strMethod = strMethod;
+	m_strUri = strUri;
 }
 
 inline std::string RZReqLine::GetReqLine() const
@@ -200,10 +200,10 @@ private:
 	std::string m_strHdrData;
 };
 
-inline void RZExtraHdr::SetExtraHdr(const std::string& _strHdrName, const std::string& _strHdrData)
+inline void RZExtraHdr::SetExtraHdr(const std::string& strHdrName, const std::string& strHdrData)
 {
-	m_strHdrName = _strHdrName;
-	m_strHdrData = _strHdrData;
+	m_strHdrName = strHdrName;
+	m_strHdrData = strHdrData;
 }
 
 inline std::string RZExtraHdr::GetExtraHdr() const
@@ -228,9 +228,9 @@ private:
 	std::vector<RZExtraHdr> m_vExtHdrList;
 };
 
-inline void RZReqPacket::FillPacket(const RZReqLine& _rLine, const std::vector<RZExtraHdr>& _vHdrList)
+inline void RZReqPacket::FillPacket(const RZReqLine& rLine, const std::vector<RZExtraHdr>& vHdrList)
 {
-	m_rLine = _rLine;
-	m_vExtHdrList = _vHdrList;
+	m_rLine = rLine;
+	m_vExtHdrList = vHdrList;
 }
 #endif		//NETBASE_H_

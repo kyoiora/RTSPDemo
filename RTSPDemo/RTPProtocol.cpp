@@ -6,7 +6,7 @@
 
 const std::string CRTPSSRC = "HP StreamMedia";
 #ifdef WIN32
-const std::string CAudioFrame = "e:\\OutputDir\\AudioFrame.mp3";
+const std::string CAudioFrame = "e:\\OutputDir\\AudioStream.mp3";
 const std::string CVideoFrame = "e:\\OutputDir\\VideoFrame.h264";
 #endif
 

@@ -20,9 +20,9 @@ RZRTSPAgent::RZRTSPAgent()
 {
 }
 
-void RZRTSPAgent::ConnectToServer(const std::string& _ip)
+void RZRTSPAgent::ConnectToServer(const std::string& ip)
 {
-	RZNetIPAddr	nIPAddr(_ip);
+	RZNetIPAddr	nIPAddr(ip);
 	RZNetPort			nPort(CRTSPDefaultPort, ENUM_TCP);
 	ConnetToPeer(nIPAddr, nPort);
 }

@@ -45,7 +45,7 @@ private:
 class RZTypeConvert 
 {
 public:
-	static int StrToInt(const std::string&, int _base);
+	static int StrToInt(const std::string&, int base);
 	static std::string IntToString(int);
 	
 private:
@@ -68,7 +68,7 @@ private:
 class RZBitmap
 {
 public:
-	RZBitmap(unsigned long _nBits = CPoolSlots);
+	RZBitmap(unsigned long nBits);
 	~RZBitmap();
 
 public:
@@ -91,36 +91,41 @@ inline void RZBitmap::Clear()
 	::memset(m_pBitmap, 0, m_nBytes);
 }
 
-inline void RZBitmap::SetBit(unsigned long _bit)
+inline void RZBitmap::SetBit(unsigned long bit)
 {
-	if (_bit >= m_nBits)
+	if (bit >= m_nBits)
 		Log::ERR("The bit need to be set is Out of Range.\n");
-	m_pBitmap[_bit/8] |= 1<<(_bit%8);
+	m_pBitmap[bit/8] |= 1<<(bit%8);
 }
 
 struct _BufferPool
 {
 	char* pBufferPool;
 	unsigned long* pSize;
+
+	_BufferPool()
+	{
+		::memset(this, 0, sizeof(_BufferPool));
+	}
 };
 typedef struct _BufferPool		BufferPool;
 
 class RZNetStrPool
 {
 public:
-	RZNetStrPool(unsigned long _nSlots = CPoolSlots);
+	RZNetStrPool(unsigned long nSlots = CPoolSlots);
 	~RZNetStrPool();
 
 public:
 	inline void Clear();
-	void Insert(unsigned long _index, const char* _pSrc, unsigned long _ulSize);
+	void Insert(unsigned long, const char*, unsigned long);
 	inline BufferPool GetBufferPool() const;
 	inline unsigned long GetItems() const;
 
 private:
 	BufferPool m_stBufPool;
 	unsigned long m_nItems;
-	const unsigned long m_nSlots;
+	unsigned long m_nSlots;
 };
 
 inline void RZNetStrPool::Clear()
@@ -140,14 +145,14 @@ inline unsigned long RZNetStrPool::GetItems() const
 	return m_nItems;
 }
 
-class RZSemaphore		//暂时不需要互斥和同步机制，但保留类的定义
+class RZSemaphore
 {
 public:
-	RZSemaphore(long _init, long _ulMax);
+	RZSemaphore(long init, long ulMax);
 	~RZSemaphore();
 
 public:
-	void Wait(WAIT_MODE _wm = ENUM_SYN, unsigned long _ulMilliSeconds = 0);
+	void Wait(WAIT_MODE wm = ENUM_SYN, unsigned long ulMilliSeconds = 0);
 	void Release();
 
 private:
@@ -189,7 +194,7 @@ class RZAgent : public RZThread
 {
 public:
 	void SetLocalPort(const RZNetPort&);
-	virtual void	ConnetToPeer(const RZNetIPAddr&, const RZNetPort&);
+	virtual void ConnetToPeer(const RZNetIPAddr&, const RZNetPort&);
 
 protected:
 	RZAgent(RZNetConn*);

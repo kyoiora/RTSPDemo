@@ -5,7 +5,7 @@
 
 //const std::string CServerAddr = "192.168.4.134";
 //const std::string CRequestFile = "live1.sdp";
-const std::string CServerAddr = "192.168.5.136";
+const std::string CServerAddr = "192.168.1.136";
 const std::string CRequestFile = "sample.mp3";
 
 int main(int argc, char* argv[])

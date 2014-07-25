@@ -1,0 +1,436 @@
+// "RZ" is short for Ricci.Z ;-)
+①RTSPClient/0.0.1 (HP Streaming Media v2014.05.24)
+		->一个单线程的初级版本
+②RTSPClient/0.1.1 (HP Streaming Media v2014.07.01)
+		->引入多线程和日志库
+//////////////////////////////////////////////////////////////////////////
+RZNetConn		[NetConn.h]
+这是一个纯虚类，不能够被实例化，但它提供了一些具体的连接共有的公共接口，并且定义了所有的子类都会用到的一些属性和方法，这样子类不必再单独定义，直接继承就可以了通常对于一个网络连接来说，socket/ip/port都是必须的，这些是构成一个通信信道的基础设施，注：对于一个具体的连接所使用的协议类型保存在端口对象中，这是因为有端口不一定会有连接，但如果有连接那么一定会有端口
+void InitWinSockDLL();
+		->在windows下有一个初始化windows socket dll的函数
+		在使用任何套接字前都需要先调用这个函数以声明需要使用套接字
+void InitNetConn();
+		->初始化网络连接，主要申请了用于接收数据的缓冲区，清空读集合并执行一些平台相关的初始化
+
+int m_iSockFile;
+		->m_iSockFile = -1 无效；否则有效
+void CreateSocket();
+		->创建套接字，根据端口中存放的协议类型来创建TCP或是UDP套接字
+inline bool SocketValid() const;
+		->测试当前套接字是否有效，在建立连接之前首先应测试套接字是否有效
+
+RZNetIPAddr	m_nIPAddr;		//n means net
+RZNetPort	m_nPort;
+		->这个IP地址和端口构成的二元组标识一个通信对端的指定进程，并不需要在这个类中定义一个表明本地端口的数据成员，这是因为有些连接的本地端口需要手动设置，而有些连接的本地端口则由系统提供
+virtual void BuildConnection() = 0;
+		->建立连接，虽然UDP协议基于无连接的方式和对端进行通信，但我们这里仍然提供一个建立连接的方法，只不过在具体实现时并不调用connect函数，这样就使得整个模型更加统一规范
+struct NetString
+{
+	char* pBuffer;	//包的起始地址
+	int iSize;	//包的大小
+};
+virtual void SendDataToPeer(const char*, int) = 0;
+virtual NetString RecvDataFromPeer() = 0;
+		->向对端发送数据以及从对端接收数据，仍需要视具体的连接而定。这里不能用std::string类，这是因为网络上发送的数据有可能是二进制数据，而std::string一旦遇到ascii 0就会发生截断
+inline RZNetIPAddr GetPeerIP() const;
+		->获取当前连接的对端的IP地址
+inline RZNetPort GetPeerPort() const;
+		->获取当前连接的对端的端口号
+inline NET_PRTTYPE GetPrtType() const;
+		->获取当前连接使用的传输层协议
+inline void SetPeerIPAndPort(const RZNetIPAddr&, const RZNetPort&);
+		->设置通信对端的IP地址和端口，具体的连接有具体的设置方式
+
+char* m_rBuffer;		//r means receive
+unsigned long m_uBufSize;
+		->连接对象发送的数据由用户指定，因此不需要发送缓冲区，连接本身只负责接收数据，但接收时需要接收的数据大小是未知的，所以就需要设置一个足够大的缓冲区，这个连接设置的默认缓冲区大小是4096字节
+int GetSysRecvBufSize() const;
+		->获取系统协议栈使用的缓冲区大小，根据这个值可以适当的调整应用内部的缓冲区大小
+void SetSysRecvBufSize(int);
+		->设置系统协议栈使用的缓冲区大小
+void SetLocalBufSize(unsigned long);
+		->设置当前连接在本地用于接收数据的缓冲区的大小（暂时没有任何对象使用）
+
+fd_set m_readSet;
+int m_maxFd;	
+		->具体的连接会用到等待通信对端响应的函数，有可能是同步的，也可能是异步的。等待函数调用了select函数，因此需要一个fd_set类型的读集合
+inline void ClearReadSet();
+		->清除读集合
+inline void AppSockInReadSet();
+		->将这个连接的套接字加入读集合，同时更新maxFd
+int WaitForPeerResponse(const WAIT_MODE&, long milliSec = 0) const;
+		->等待通信对端响应，可以使用同步和异步两种模式，若为异步，可继续设置等待时间。milliSec的单位为毫秒，返回值为就绪的文件描述符个数
+
+//////////////////////////////////////////////////////////////////////////
+RZTcpConn		[NetConn.h]
+这个类没有私有数据成员，其所有的数据都是从RZNetConn类继承得来的
+virtual void BuildConnection();
+		->如果IP地址和端口有效，那么创建套接字并连接到指定地址
+void SendDataToPeer(const char*, int);
+		->将数据发送到通信对端，数据存放在const char*指向的缓冲区中
+NetString RecvDataFromPeer();
+		->接收数据并将其存放在内部缓冲区中，这个缓冲区继承自RZNetConn类
+
+//////////////////////////////////////////////////////////////////////////
+RZUdpConn		[NetConn.h]
+实际上对于UDP来讲是没有Client和Server的区别的，因为任意的2个通信对象之间是对等的。这也就是说，在本地会有一个指定的端口，无论哪个ip地址，只要它把数据发往这个端口，那么recvfrom这个调用都会负责把数据接收到指定缓冲区中。需要将这个本地端口作为其私有数据成员保存下来，因为RTSPClient在和对端通信时需要用到这个数据
+void BuildConnection();
+void SendDataToPeer(const char*, int);
+NetString RecvDataFromPeer();
+		->同上
+inline RZNetPort GetLocalPort() const;
+		->获取本地接收数据的端口
+void BindLocalPort(const RZNetPort&);
+		->绑定本地接收数据的端口
+inline void InitLocalPort(const RZNetPort&);
+		->初始化操作除了绑定本地端口外，还需要将套接字添加至读集合。但添加套接字的操作有严格的顺序制约，这是因为套接字是在绑定操作中创建的
+
+//////////////////////////////////////////////////////////////////////////
+RZLogger		[Logger.h]
+日志类应包含2个部分：①写控制台；②写文件（包含文本文档和结构化的数据库文件）
+①写控制台：这部分主要用于调试，比如调用平台相关API时可能会返回出错，出错信息提示错误源并展示出错码，主要用于快速定位bug并解决bug，一般调试时只要写控制台就可以了
+②写文件，对于可以正常运行的程序，有可能（它是一个Server）需要一周7*24小时的运行，这个时候需要程序做一些记录（比如用户的请求信息、响应情况等等），这些记录被用来观察这个程序是否正常运行，一般这些记录都是简单地写文件，但是如果需要更精细的控制，则可能会设计相关的表来结构化地存储这些记录，所以这个类有可能会写数据库文件（目前只包含写控制台部分）
+static void ERR(const char* fmt, ...);
+		->提示出错并打印一些User-Defined Information（出错的文件，函数以及行号这些功能需要通过宏来实现，否则出错时打印的永远是ERR这个函数所在的文件/函数/行号）		
+
+//////////////////////////////////////////////////////////////////////////
+RZConsoleOutput		[ConsoleText.h]
+这个类实现控制台信息的个性化打印
+HANDLE m_hConsoleOutput;
+COORD m_dwWriteCoord;
+		->m_hConsoleOutput表示控制台句柄，通过GetStdHandle函数取得这一句柄。注意它是全局共享资源，因此在多线程应用中要注意互斥和重入问题。m_dwWriteCoord记录位置信息
+void GetCursorPosition();
+		->获取当前光标的位置信息
+void OutputCharacter(const char*, ...);
+		->在控制台的指定位置处打印可供格式化的信息
+
+//////////////////////////////////////////////////////////////////////////
+RZNetPort		[NetBase.h]
+这个类不存在默认构造函数，在定义这个类的对象的同时必须指定端口对应的协议类型
+如果确实无法指定协议类型，那么就使用ENUM_UNK枚举值
+inline bool PortValid() const;
+		->测试当前端口值是否可用
+inline NET_PRTTYPE GetPrtType() const;
+		->获取端口对应的协议类型
+inline void SetPrtType(NET_PRTTYPE);
+		->设置端口对应的协议类型
+inline unsigned short GetPortValue() const;
+		->获取当前端口值
+void SetPortValue(unsigned short);	
+		->设置端口值
+void RandSelectValidPort(NET_PORTTYPE);
+		->随机选择指定范围内的一个有效端口，选择的端口总是偶数，这是因为RTP协议只用偶数端口！
+bool PortOccupied(unsigned long);
+		->测试参数指定的端口值是否已被其他进程所占用
+NET_PORTTYPE GetPortType() const;
+		->取得端口的类型（有①知名端口；②注册端口；③动态端口三种类型）目前这个方法没有什么用，但写在这里吧
+inline void UpdateSystemOccupiedPort();
+std::vector<unsigned long> GetLocalUsedPort(NET_PRTTYPE);
+std::vector<unsigned long> GetLocalUsedTcpPort();
+std::vector<unsigned long> GetLocalUsedUdpPort();
+		->取得系统中正在使用的端口（平台相关）
+
+//////////////////////////////////////////////////////////////////////////
+RZNetIPAddr		[NetBase.h]
+这个类提供一个默认构造函数和一个带字符串参数的构造函数，可以使用一个点分
+十进制形式的字符串初始化这个类的对象
+inline unsigned long GetULIPAddr() const;
+		->取得IP地址的无符号整形形式
+inline std::string GetSTRIPAddr() const;
+		->取得IP地址的点分十进制串形式
+void SetIPAddr(const std::string&);
+		->设置IP地址
+inline bool IPAddrValid() const;
+		->当前IP地址是否可用，可用的意义仅仅表示这个IP地址是否合法
+inline void InitIPAddr(const std::string&);
+		->初始化IP地址，主要设置2个私有数据成员
+bool IPAddrLegal(const std::string&) const;
+		->检测IP地址是否合法，合法返回true，否则为false
+
+//////////////////////////////////////////////////////////////////////////
+RZReqLine			[NetBase.h]
+RZExtraHdr
+RZReqPacket
+这3个类提供一个基于TCP协议的请求包，3个类都比较简单，但用的地方会比较多
+封装一下用起来会很方便，并且提供的接口也比较少，不再做具体介绍
+
+//////////////////////////////////////////////////////////////////////////
+RZGlobalInit		[MetaObject.h]
+这个类采用单例模式，定义了一个本类的静态成员对象，因此在进入main函数之前就调用了
+这个类的构造函数。
+RZGlobalInit()
+		->在这里完成对整个系统的初始化，这个函数在程序的整个生命周期中只被调用一次
+
+//////////////////////////////////////////////////////////////////////////
+RZStream		[MetaObject.h]
+这个类提供了一个所有的流都有可能用到的串分割方法
+static std::vector<std::string> StreamSplit(const std::string& p1, const char* p2);
+		->串分割方法，根据p2对字符串p1切割，返回p1中所有以p2分隔的子串，并丢弃分隔符
+
+//////////////////////////////////////////////////////////////////////////
+RZTypeConvert		[MetaObject.h]
+这个类提供可能会用到的各种类型之间的转换
+static int StrToInt(const std::string&, int base);
+		->根据base将字符串转换为int，只支持2~16进制之间的字符串的转换
+static std::string IntToString(int);
+		->将整形转换为字符串
+
+//////////////////////////////////////////////////////////////////////////
+RZTime			[MetaObject.h]
+这个类提供和时间相关的一些函数
+static unsigned long GetTimeStamp();
+		->获取时间戳，单位为毫秒级
+static unsigned long GetWallClockTime();
+		->获取墙上时钟，单位为毫秒级
+static void Sleep(unsigned long);
+		->根据提供的参数使当前工作线程睡眠一定时间，单位为毫秒级
+
+//////////////////////////////////////////////////////////////////////////
+RZBitmap		[MetaObject.h]
+这个类提供位图相关功能
+unsigned long m_nBits;
+		->指示位的个数，实际使用的范围为0~m_nBits-1
+unsigned long m_nBytes;
+		->与位的个数对应的字节数，这是一个整型值且被设置为(m_nBits+7)/8。在多数情况下，最后一个字节总是会有多余的位，但这些位总是置零，并且在公有方法的设置及检测操作中总是提供范围检测。
+inline void Clear();
+		->将位图所占内存空间清零
+inline void SetBit(unsigned long);
+		->将指定的位进行置位操作，如果这一位已被置1，那么不改变这一位的状态
+unsigned long BitCounts() const;
+		->统计当前位图中已置位的个数
+bool GetBit(unsigned long) const;
+		->测试指定的位是否置位
+int CountOnByte(char) const;
+		->计算指定的一个字节中置位的个数
+
+//////////////////////////////////////////////////////////////////////////
+RZNetStrPool		[MetaObject.h]
+struct _BufferPool
+{
+	char* pBufferPool;
+	unsigned long* pSize;
+};
+typedef struct _BufferPool	BufferPool;
+_BufferPool表示缓冲池，pBufferPool是整个池的起始地址，而pSize则对应地存放缓冲池的每个缓冲区中已有的数据量的大小，之所以要用C-Style字符串是因为网络流中可能有ASCII字符0，所以不能用std::string，否则将发生自动截断
+unsigned long m_nSlots;
+unsigned long m_nItems;
+		->分别表示缓冲池槽的总数和已经被占用的缓冲区的个数
+inline void Clear();
+		->对pBufferPool以及pSize占用的内存空间清零
+void Insert(unsigned long index, const char* pSrc, unsigned long ulSize);
+		->将pSrc所指向的内存块插入缓冲池中的第index个缓冲区内，其中index的取值范围为0~m_nSlots-1。ulSize表示内存块的大小
+inline BufferPool GetBufferPool() const;
+inline unsigned long GetItems() const;
+		->获取缓冲池以及当前可用的缓冲区的总数
+
+//////////////////////////////////////////////////////////////////////////
+RZSemaphore		[MetaObject.h]
+这个类只提供一个需要指定2个参数的构造函数，这个构造函数的声明如下：
+RZSemaphore(long init, long ulMax);
+		->init表示信号量的初值，ulMax表示这个信号量最多可以增加到的上限
+在使用信号的时候强制提供这2个初值，否则就不要使用这个对象的实例，可以改为使用这个对象类型的指针
+void Wait(WAIT_MODE wm = ENUM_SYN, unsigned long ulMilliSeconds = 0);
+void Release();
+		->Wait和Release操作分别为加锁和解锁操作，其中Wait方法提供阻塞和非阻塞2种机制，但一般来说都会使用阻塞模式，因为一旦请求不到所需的资源，那么后续的计算操作也不可能正常执行
+
+//////////////////////////////////////////////////////////////////////////
+RZThread		[MetaObject.h]
+这个类对平台相关的线程函数打包从而实现一个抽象的线程类，需要单独开一个线程完成任务的
+对象的类可以直接继承这个类，并且只要实现线程的主函数就可以调用StartThread以开启一个
+线程
+void StartThread(int nCount = 1);
+		->开始一个线程，参数表示开启线程的个数，默认为1
+virtual void ThreadProc() = 0;
+		->线程主函数，各个具体的类应该自己实现这个函数
+static unsigned long InitThreadProc(void* lpdwThreadParam);
+		->windows平台上创建线程需要用到的回调函数。在父线程中调用srand(time(NULL))使用当前时间做种子是没用的，因为rand()对于各线程是独立的 ，就是说每个线程在线程切换时都保存最初的状态。因此在开启一个工作流之前最好先调用srand函数
+static void WaitPeerThreadStop(const RZThread&);
+		->等待对端线程终止，之所以设置为静态成员函数，是因为在主线程中也可能要等待指定线程终止
+inline unsigned long GetCurrentThreadID() const;
+		->获取当前线程的ID
+
+//////////////////////////////////////////////////////////////////////////
+RZAgent : public RZThread		[MetaObject.h]
+RZAgent是具体Agent的一个抽象类
+virtual void ConnetToPeer(const RZNetIPAddr&, const RZNetPort&);
+		->所有Agent都会有连接到对端的操作，当某个Agent比较特殊时可以重写自己的这部分操作。
+virtual void RecvPeerData(WAIT_MODE _eWaitMode = ENUM_SYN);
+virtual void ParsePacket(std::string&) = 0;
+		->接收对端数据并解析收到的数据，接收对端数据的操作大多大同小异，因此该抽象类提供一个已经实现的虚函数，当具体的Agent有自己接收数据的方式时同样可以重写这个方法。ParsePacket指明处理收到的数据的方法
+void SetLocalPort(const RZNetPort&);
+		->设置本地端口，只有使用UDP协议时才会调用这个方法，这是因为使用TCP连接时本地端口是由系统自动选择的一个随机端口，因此当运行TCP协议的Agent调用这个方法时仅仅打印一些警告信息而不执行任何操作。当判断得出确实是运行UDP协议的Agent调用此方法时，首先将指针m_pNetConn动态转换为RZUdpConn*类型的指针，然后调用在RZUdpConn类中实现的方法，这个方法在RZNetConn中没有声明也没有实现，所以必须要进行类型转换
+
+//////////////////////////////////////////////////////////////////////////
+RZSessDescribe		[SessDescribe.h]
+这个类主要用于存放关于某个原文件的信息，由于这个文件需要在通信两端进行传输，因而在传输
+之前需要事先告知对端这个文件的信息，对于服务方来说这个类最主要的操作是存，而对请求方来
+说则是取。在这个类中还定义了一个SDPCacheInfo结构，存储这个结构是为了减少某些检索操作较为频繁的数据的计算量，当用到这些数据时，直接取计算好的缓存中的数据就可以了
+inline std::string GetAudioID() const;
+inline std::string GetVideoID() const;
+		->获取sdp结构体中标识音视频流的ID
+void SetTypeValue(const std::string&);
+		->将字符串解析成sdp结构体，并设置索引以及媒体流的ID、索引及媒体流ID存放在缓存信息结构体SDPCacheInfo中
+void SetAVStreamIndex();
+void SetMediaStreamID(const MediaDescription*);
+		->设置音视频流索引以及ID
+int GetSampFrequence(STREAM_MEDIA_TYPE) const;
+		->根据媒体类型获取对应的采样频率。RTP数据包中的时间戳单位是频率的倒数
+
+//////////////////////////////////////////////////////////////////////////
+//RTP和RTCP相关部分还需要重构
+RZRTPAgent : public RZAgent		[RTPProtocol.h]
+RZRTPAgent暂时主要用于接收对端的实时数据流，其中数据流是以UDP协议发送的
+这个类中用到了比较复杂的自定义的结构体，这些结构体中字段的详细解释如下
+struct _RTPHeader 
+{
+	RTPFirstByte	uFirByte;
+	RTPSecByte	uSecByte;
+			->以上2个联合中每个字段（包括位域）的解释存放在源文件的定义处
+	unsigned short	SeqNum;
+			->序列号：发送方在每发完一个包后就将该值增加1，接收方可以由这个域检测包的丢失以及恢复包的序列，序列号的初值可能是随机的，这依赖于具体的实现
+	unsigned long	TimeStamp
+			->时间戳：记录了该包中的数据的第一个字节的采样时刻，在一次会话开始时，时间戳初始化成某个值，其后时间戳的数值要随时间不断地增加
+	unsigned long	SSRC;
+			->指示RTP包流的来源，在同一个RTP会话中不能有2个不同的SSRC值
+	std::vector<std::string>		CSRC;
+			->贡献源列表：有0~15项，每项32比特，用来标识对一个RTP混合器产生的新包有贡献的所有RTP包的源，这个列表中拥有的项是不确定的，项数由FirstByte中的CC标志位指明
+			注：在v0.1.1版本中这个字段被去掉了
+};
+
+struct _MediaInfo;
+{
+			->在收到包后需要做如下处理：检查RTP中的P域——该位指示包的尾部是否有填充，如果没填充，那么整个包都是RTP包，如果有填充，包的最后一个字节指示填充的长度，应该要从这个包中去掉填充的字节
+	int iFirstSeq;	//第一个包的序列号，可能存放在RTSP响应包的RTP-Info报头中
+	int iPackNum;	//包的总数
+	bool bRecvAll;
+			->包是否已全部接收完毕，在RTCP中有一个指明已发送包的总数的域。但是使用UDP进行包的传输一般都会存在丢包，所以“接收完毕”的意思并不是全部接收到了服务器端发过来的包，当发生丢包时，音视频数据照样能够被处理，这是因为存在对应的补偿算法，只要丢包不是太严重，不会影响音视频的正常播放，当在RTP线程退出之前会设置这个值，这样在RTSP线程中发现这个值为true，那么它就可以向服务器发送TEARDOWN方法了。
+	unsigned long ulSSRC;
+			->这个同步源由RZRTSPAgent设置，在每次接受RTP包时都要将包的同步源标识符与这个值比对，若相同再继续处理，否则丢包
+	int iSampFreq;
+			->采样频率，这个值由RTSP线程根据接收到的sdp结构进行设置，在进行与时间戳相关的操作时需要用到对应媒体的采样频率
+};
+
+struct _LostPackStatis
+{
+	int iStart, iEnd;		//单个缓冲池的起始与结束位置
+	unsigned long nRecvPacks;	//实际收到的包
+	unsigned long nHndleCnt;		//已处理的包的总数
+	unsigned long uThresHold;	//当前阀值
+	std::vector<unsigned long> vLostPack;		//存放丢失的包的序列号（转换后唯一）
+	unsigned long ulFirSeqWallClck;		//RTCP携带的第一个墙上时钟，单位为毫秒
+	unsigned long ulFirSeqRTPStmp;		//对应的第一个RTP时间戳
+	std::vector<unsigned long> vPackDiff;		//the difference D in packet
+	RZSemaphore mSemaphore;
+};
+
+以上是RZRTPAgent类用到的结构体
+std::queue<std::string> qBufferPool;
+		->设置一个缓冲池，当接收到一个udp包时并不立即将包写进文件，而是等到缓冲池满时
+			再一并写入文件，这样能够提高系统的I/O效率
+void InitAgent();
+		->初始化工作是设定本地的接收端口，选择的端口必须是连续2个都未被占用的端口中的
+			第一个，并且第一个端口应该是偶数，而第二个端口则由RTCP协议使用。这2个端口在
+			动态端口中进行选择
+void InitTmpFile();
+		->初始化临时文件，根据接收数据流的类型生成响应的文件并打开这些文件，在这个类的
+			析构函数中关闭这些文件
+void ThreadProc();
+void ParsePacket(std::string&);
+void WriteTmpFile();
+static bool Compare(const MediaMetaData&, const MediaMetaData&);
+void SortPacket();
+		->ThreadProc是线程主函数，开启这个线程时首先打开RTCP线程，并不停地接收对端发送
+			到本地的数据流。当接收到一个数据包之后，使用ParsePacket解析这个包，并将数据流的
+			有效载荷存储在本地缓冲池，当缓冲池满或者已接收完全部数据流之后，再调用
+			WriteTmpFile写入临时文件，注意此时写入的数据流是乱序的。接受完所有的数据流之后
+			退出主循环，对乱序的数据流排序并生成有序文件
+inline RZNetPort GetLocalPort() const;
+		->获取本地的接收端口
+inline void SetMediaType(RTP_MEDIA_TYPE);
+		->设置媒体类型
+inline void SetFirstSeq(int);
+		->设置第一个RTP包的序列号
+inline void SetSSRC(unsigned long);
+		->设置RTP包的SSRC（同步源标识符）
+inline bool PackRecvComplete() const;
+		->测试RTP包是否已全部接受完，若是则返回true，否则返回false
+
+//////////////////////////////////////////////////////////////////////////
+RZRTCPAgent : public RZAgent		[RTPProtocol.h]
+RTCP是RTP的控制部分，其主要为RTP实时流的服务质量提供保证，所以在RTCP包中不包含
+实体，只有头部，并且一个RTCP包通常会包含多个头部！
+RTCP包共有5种类型的头部，分别是：
+①SR（200）——发送端报告；②RR（201）——接收端报告；③SDES（202）——源点描述
+④BYE（203）——结束传输；⑤APP（204）——特定应用
+通常由一个头部的第二个字节（PT域）指明头部的类型
+在这个实现中只考虑从服务器端拉流，并不考虑实时流的质量控制，所以只定义SR头部结构，
+因为其中包含和RTP数据包有关的信息【SenderInfo中的PacketCount/PayloadOctets字段】，
+在读到RTCP包中的其他头部时简单忽略，当检测到BYE头部时就可以知道已发送的RTP包的总数
+RTCP_Packet rPacket;
+		->表示从对端收到的响应包
+inline void SetLocalSSRC(unsigned long);
+		->设置本地SSRC，通常在开始接收RTCP包之前设置，在收到RTCP包之后要检查SSRC是否
+			相等
+inline bool GetLastPacket() const;
+inline unsigned long GetTotalRTPPack() const;
+		->指明是否已取得最后一个RTCP包，并获取RTP包的总数。在接收到最后一个RTCP包时，
+			这个包中含有对端发送的RTP包的总数
+void ThreadProc();
+void ParsePacket(std::string&);
+		->ThreadProc是线程主函数，开启这个线程主要用于接收RTCP包，但不对这些包响应，接收
+			的目的是取得最后一个RTCP包并得到对端发送的RTP包的总数
+			ParsePacket主要是解析RTCP包
+
+//////////////////////////////////////////////////////////////////////////
+RZRTSPAgent : public RZAgent		[RTSPAgent.h]
+RTSP通过与RTP/RTCP协议配合进行流的实时传输，RTSP与服务器建立TCP连接，而数据流则通过基于UDP的RTP协议进行传输
+RTSP_TASK	m_eTask;
+		->定义任务，即这个Agent与对端端通信是为了完成什么
+std::string	m_strReqFile;
+		->RZRTSPAgent请求得到的实时数据流是与某个具体的文件对应的
+RZRTPAgent*	m_pRTPAgent;
+		->用于接收实时数据流，因为实时流可能是单独的视频流，单独的音频流，也可能是混合的音视频流，所以可能只需要1个对象，也可能会需要2个对象
+struct _RTSPHdrCache
+{
+	int iCseq;
+			->表示当前请求的序列号，每发送一次请求序列号都自增1
+	std::string strSession;
+			->Session头首次出现在Server对SETUP请求的响应中，这个头部由Server首先发送。一旦发现响应包中出现Session头，那么后续的每个请求包中都需要包含该请求头
+};
+ResponsePacket	m_stResPacket;
+RTSPHdrCache	m_stHdrCache;
+RZSessDescribe	m_sdpPacket;
+		->分别表示从对端接收的响应包，以及响应包中的缓存信息，会话描述实体
+void ConnectToServer(const std::string&);
+		->连接到服务器，之所以不需要指定端口，是因为这里使用了RTSP通信的默认端口
+inline void SetRequestFile(const std::string&);
+		->设置请求文件
+void StartTask(RTSP_TASK);
+		->执行任务
+std::string		GetMethodStr(RTSP_METHOD) const;
+		->根据枚举值获取对应方法的字符串
+RZReqLine		GetReqLineByMethod(RTSP_METHOD, int);
+		->根据方法获取对应的请求行。一个请求行由<method> <uri> <version>组成，其中uri（即通用资源定位符）通常只会用到指定的地址和指定的文件。但由于RTSP请求的是实时的视音频流，而这2个流又放置在一个统一的文件中，因此RTSP的某些方法对应的uri可能还会需要指定文件内部的某一块数据（可能是视频流也可能是音频流），所以uri可能是rtsp://ipaddr:port/requestfile，或者rtsp://ipaddr:port/requestfile/specifydatablock。而使用到后一种uri的方法只有少数几个，并且对于这个任务来说只有SETUP方法会用到
+std::vector<RZExtraHdr> GetGeneralExtraHdr() const;
+void GetDESCRIBEExtraHdr(std::vector<RZExtraHdr>&) const;
+void GetSETUPExtraHdr(std::vector<RZExtraHdr>&, int) const;
+void GetPLAYExtraHdr(std::vector<RZExtraHdr>&) const;
+		->获取通用的附加报头及指定方法的附加报头。由于每种方法所需要的请求报头并没有一个硬性的规定，因此这里参考VLC客户端实现中
+std::vector<RTSP_METHOD> GetTaskMethodList() const;
+		->获得与具体任务对应的方法列表。接收请求文件中的视/音频流参考VLC中的实现，具体到方法的发送顺序如下：OPTIONS->DESCRIBE->*(SETUP[Audio])->*(SETUP[Video])->PLAY->TEARDOWN
+void SendRequest(RTSP_METHOD, int);
+		->发送请求至服务器端，在每次发送之前都要首先将序列号自增1
+void ParsePacket(std::string&);
+		->解析响应包并填充m_stResPacket成员，但是在每次填充之前并不将这个成员清空，这意味着在某个时间戳上，该成员内的每个字段并非都属于当前请求的响应包。在解析完响应行和报头之后可能还有实体，但对实体部分不做任何解析，因为不同任务可能会使用不同的文本描述，所以实体部分的解析由具体的任务来执行
+std::map<std::string, int>	GetRTPFirstSeq() const;
+		->获取RTP数据流中第一个包的序列号，由于有可能发送多个不同类型的数据流，所以在响应包的RTP-Info报头中会有多个以“，”分隔的值。这个函数的返回值是一个map容器，其中key表示数据流的标识符—即uri中由“/”分隔的最后一个字符串，value表示包的序列号
+std::map<std::string, std::string>	GetResTransFields() const;
+		->获取响应包的transport报头中有关对端端口的信息，该函数也返回一个map容器，其中key的值为"server_port"，value表示server_port的值，类似于"57402-57403"
+void OnDispatchAcceptAVStream();
+		->在运行RTSP协议的两端之间的通信应该是同步的，换言之，当客户端发送一个请求之后，客户端应该在此等待，只有得到了Server端的响应才能根据响应的内容决定是否继续发送下一个请求。如果他们之间的通信是异步的，可以考虑这样一种状况：服务器发送一个DESCRIBE方法之后，并不等待服务器的回复就立即发送SETUP方法，这显然是错误的，因为SETUP方法中具体到和某一块数据（音频/视频流）相关的标识（这个标识构成URI）还没有被客户端接收到。在接收到PLAY方法的响应包之后，RTSPAgent被阻塞，直到RTPAgent接收完全部的实时数据流。响应包中只有Range和RTP-Info这2个报头需要特别处理，对Range的处理方式是直接显示该报头的内容，而RTP-Info报头中的某些值需要在接收实时流时由RTPAgent使用
+void OnResponseOPTIONS();
+void OnResponseDESCRIBE();
+void OnResponseSETUP(int&);
+void OnResponsePLAY();
+void OnResponseTEARDOWN();
+		->在接收到服务器对指定方法的响应包后执行的一些后续操作，并入设置RTPAgent的某些状态等等

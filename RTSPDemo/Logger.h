@@ -2,8 +2,6 @@
 #define	LOGGER_H_
 #include <iostream>
 
-#define DEBUG(X)		std::cout<<#X" = "<<X<<'\n'
-
 class RZLogger
 {
 public:

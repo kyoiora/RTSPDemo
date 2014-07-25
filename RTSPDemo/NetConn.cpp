@@ -40,13 +40,13 @@ void RZNetConn::InitNetConn()
 #endif
 }
 
-void RZNetConn::SetLocalBufSize(unsigned long _uBufSize)
+void RZNetConn::SetLocalBufSize(unsigned long uBufSize)
 {
-	void* v = realloc(m_rBuffer, _uBufSize);
+	void* v = realloc(m_rBuffer, uBufSize);
 	if (v == 0)
 		Log::ERR("realloc for rBuffer failed.\n");
 	m_rBuffer = (char*)v;
-	m_uBufSize = _uBufSize;
+	m_uBufSize = uBufSize;
 }
 
 int RZNetConn::GetSysRecvBufSize() const
@@ -66,14 +66,14 @@ int RZNetConn::GetSysRecvBufSize() const
 #endif
 }
 
-void RZNetConn::SetSysRecvBufSize(int _iBufSize)
+void RZNetConn::SetSysRecvBufSize(int iBufSize)
 {
 	if (!SocketValid())
 		Log::ERR("Please create a socket file first.\n");
 
 #ifdef WIN32
 	if (::setsockopt(m_iSockFile, SOL_SOCKET, SO_RCVBUF, 
-								(const char*)&_iBufSize, sizeof(int)) == SOCKET_ERROR)
+								(const char*)&iBufSize, sizeof(int)) == SOCKET_ERROR)
 	{
 		Log::ERR("Platform SDK \'setsockopt\' called failed.\tError Code: %d\n", 
 							WSAGetLastError());
@@ -81,20 +81,20 @@ void RZNetConn::SetSysRecvBufSize(int _iBufSize)
 #endif
 }
 
-int RZNetConn::WaitForPeerResponse(const WAIT_MODE& _wm, long _milliSec /* = 0 */) const
+int RZNetConn::WaitForPeerResponse(const WAIT_MODE& wm, long milliSec /* = 0 */) const
 {
-	if (_wm != ENUM_SYN && _wm != ENUM_ASYN)
+	if (wm != ENUM_SYN && wm != ENUM_ASYN)
 		Log::ERR("Select incorrect wait mode.\n");
 
 	fd_set readySet = m_readSet;
 	struct timeval tv, *ptv;
 	int iRet;
-	if (_wm == ENUM_SYN)		//同步模式
+	if (wm == ENUM_SYN)		//同步模式
 		ptv = NULL;
 	else		//异步模式
 	{
 		tv.tv_sec = 0;
-		tv.tv_usec = _milliSec*1000;		//_milliSec表示毫秒，而tv_usec字段表示微妙
+		tv.tv_usec = milliSec*1000;		//_milliSec表示毫秒，而tv_usec字段表示微妙
 		ptv = &tv;
 	}
 #ifdef	WIN32
@@ -169,13 +169,13 @@ void RZTcpConn::BuildConnection()
 #endif
 }
 
-void RZTcpConn::SendDataToPeer(const char* _buf, int _size)
+void RZTcpConn::SendDataToPeer(const char* buf, int size)
 {
 	if (!SocketValid())
 		Log::ERR("Can not send data, Please BuildConnection first.\n");
 
 #ifdef WIN32
-	if (::send(m_iSockFile, _buf, _size, 0) == SOCKET_ERROR)
+	if (::send(m_iSockFile, buf, size, 0) == SOCKET_ERROR)
 		Log::ERR("Platform SDK \'send\' called failed.\tErrorCode: %d\n", WSAGetLastError());
 #endif
 }
@@ -206,11 +206,11 @@ RZUdpConn::RZUdpConn()
 	::memset(&m_lPeerAddr, 0, sizeof(sockaddr_in));
 }
 
-void RZUdpConn::BindLocalPort(const RZNetPort& _port)
+void RZUdpConn::BindLocalPort(const RZNetPort& port)
 {
-	if (!_port.PortValid())
+	if (!port.PortValid())
 		Log::ERR("Port is not valid, set local listen port failed.\n");
-	m_uLocalPort = _port;
+	m_uLocalPort = port;
 
 	CreateSocket();		//创建套接字
 #ifdef WIN32
@@ -240,13 +240,13 @@ void RZUdpConn::BuildConnection()
 #endif
 }
 
-void RZUdpConn::SendDataToPeer(const char* _buf, int _size)
+void RZUdpConn::SendDataToPeer(const char* buf, int size)
 {
 	if (!SocketValid())
 		Log::ERR("Can not send data, Please BuildConnection first.\n");
 
 #ifdef WIN32
-	if (::sendto(m_iSockFile, _buf, _size, 0, (sockaddr*)&m_stPeerAddr, sizeof(sockaddr)) == SOCKET_ERROR)
+	if (::sendto(m_iSockFile, buf, size, 0, (sockaddr*)&m_stPeerAddr, sizeof(sockaddr)) == SOCKET_ERROR)
 		Log::ERR("Platform SDK \'sendto\' called failed.\tError Code: %d\n", WSAGetLastError());
 #endif
 }

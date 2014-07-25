@@ -50,10 +50,9 @@ public:
 	inline NET_PRTTYPE GetPrtType() const;
 	inline void SetPeerIPAndPort(const RZNetIPAddr&, const RZNetPort&);
 
-	//////////////////////////////////////////////////////////////////////////
 	inline void ClearReadSet();
 	inline void AppSockInReadSet();
-	int WaitForPeerResponse(const WAIT_MODE&, long _milliSec = 0) const;
+	int WaitForPeerResponse(const WAIT_MODE&, long milliSec = 0) const;
 
 private:
 	void InitNetConn();
@@ -71,7 +70,7 @@ protected:
 	inline bool SocketValid() const;
 
 protected:
-	int m_iSockFile;		//iSockFile = -1 无效；否则有效
+	int m_iSockFile;		//m_iSockFile = -1 无效；否则有效
 	RZNetIPAddr	m_nIPAddr;		//n means net
 	RZNetPort			m_nPort;
 
@@ -170,12 +169,12 @@ private:
 	int m_iSize;
 };
 
-inline void RZUdpConn::InitLocalPort(const RZNetPort& _port)
+inline void RZUdpConn::InitLocalPort(const RZNetPort& port)
 {
-	if (_port.GetPrtType() != ENUM_UDP)
+	if (port.GetPrtType() != ENUM_UDP)
 		Log::ERR("Only UDP protocol need to initialize local port, initialize failed.\n");
 
-	BindLocalPort(_port);
+	BindLocalPort(port);
 	AppSockInReadSet();		//绑定时创建套接字
 }
 

@@ -21,21 +21,21 @@ RZGlobalInit::RZGlobalInit()
 	// ...
 }
 
-std::vector<std::string> RZStream::StreamSplit(const std::string& _str, const char* _delim)
+std::vector<std::string> RZStream::StreamSplit(const std::string& str, const char* delim)
 {
 	std::vector<std::string> vAtomList;
-	if (_str == "")		//字符串为空
+	if (str == "")		//字符串为空
 		return vAtomList;
-	if (_delim == NULL)		//分隔符为空
+	if (delim == NULL)		//分隔符为空
 	{
-		vAtomList.push_back(_str);
+		vAtomList.push_back(str);
 		return vAtomList;
 	}
 
-	std::string strStream = _str;
-	int nLength = ::strlen(_delim);
+	std::string strStream = str;
+	int nLength = ::strlen(delim);
 	int nPos = 0;
-	while ((nPos = strStream.find(_delim)) != -1) 
+	while ((nPos = strStream.find(delim)) != -1) 
 	{
 		//在流中找到这个分隔符，位置可能为0
 		if (nPos == 0) 
@@ -54,20 +54,20 @@ std::vector<std::string> RZStream::StreamSplit(const std::string& _str, const ch
 
 //////////////////////////////////////////////////////////////////////////
 //RZTypeConvert类
-int RZTypeConvert::StrToInt(const std::string& _str, int _base)
+int RZTypeConvert::StrToInt(const std::string& str, int base)
 {
-	if (_str == "")
+	if (str == "")
 		Log::ERR("Pass a null string into this function.\n");
-	if (_base <2 || _base > 16)
+	if (base <2 || base > 16)
 		Log::ERR("Unsupport convertion which base is larger than 16.\n");
 	char* pEnd;
-	return ::strtol(_str.c_str(), &pEnd, _base);
+	return ::strtol(str.c_str(), &pEnd, base);
 }
 
-std::string RZTypeConvert::IntToString(int _i)
+std::string RZTypeConvert::IntToString(int i)
 {
 	char buf[16];
-	sprintf(buf, "%d", _i);
+	sprintf(buf, "%d", i);
 	return std::string(buf);
 }
 
@@ -98,19 +98,19 @@ unsigned long RZTime::GetWallClockTime()
 #endif
 }
 
-void RZTime::Sleep(unsigned long _ulDelay)
+void RZTime::Sleep(unsigned long uDelay)
 {
 #ifdef WIN32
-	::Sleep(_ulDelay);		//毫妙
+	::Sleep(uDelay);		//毫妙
 #elif
-	::usleep(1000*_ulDelay);
+	::usleep(1000*uDelay);
 #endif
 }
 
 //////////////////////////////////////////////////////////////////////////
 //RZBitmap类
-RZBitmap::RZBitmap(unsigned long _nBits /* = CPoolSlots */)
-:m_nBits(_nBits),
+RZBitmap::RZBitmap(unsigned long nBits)
+:m_nBits(nBits),
  m_nBytes((m_nBits+7)/8)
 {
 	m_pBitmap = (char*)malloc(m_nBytes);
@@ -128,12 +128,12 @@ RZBitmap::~RZBitmap()
 	}
 }
 
-int RZBitmap::CountOnByte(char _c) const
+int RZBitmap::CountOnByte(char c) const
 {
 	int iCount = 0;
-	while(_c)
+	while(c)
 	{
-		_c &= (_c-1);		//去掉最低位的1
+		c &= (c-1);		//去掉最低位的1
 		iCount++;
 	}
 	return iCount;
@@ -147,11 +147,11 @@ unsigned long RZBitmap::BitCounts() const
 	return nCount;
 }
 
-bool RZBitmap::GetBit(unsigned long _bit) const
+bool RZBitmap::GetBit(unsigned long bit) const
 {
-	if (_bit >= m_nBits)
+	if (bit >= m_nBits)
 		Log::ERR("The bit want to get is Out of Range.\n");
-	if ((m_pBitmap[_bit/8] & (1<<(_bit%8))) != 0)
+	if ((m_pBitmap[bit/8] & (1<<(bit%8))) != 0)
 		return true;
 	else
 		return false;
@@ -159,8 +159,8 @@ bool RZBitmap::GetBit(unsigned long _bit) const
 
 //////////////////////////////////////////////////////////////////////////
 //RZNetStrPool类
-RZNetStrPool::RZNetStrPool(unsigned long _nSlots /* = CPoolSlots */)
-	:m_nSlots(_nSlots)
+RZNetStrPool::RZNetStrPool(unsigned long nSlots /* = CPoolSlots */)
+	:m_nSlots(nSlots)
 {
 	m_stBufPool.pBufferPool = (char*)malloc(m_nSlots*CPoolSlotSize);
 	m_stBufPool.pSize = (unsigned long*)malloc(m_nSlots*sizeof(unsigned long));
@@ -183,28 +183,28 @@ RZNetStrPool::~RZNetStrPool()
 	}
 }
 
-void RZNetStrPool::Insert(unsigned long _index, const char* _pSrc, unsigned long _ulSize)
+void RZNetStrPool::Insert(unsigned long index, const char* pSrc, unsigned long ulSize)
 {
-	if (_index >= m_nSlots)
+	if (index >= m_nSlots)
 		Log::ERR("Index is Out of NetStrPool Range.\n");
 
-	if ((m_stBufPool.pSize)[_index] == 0)
+	if ((m_stBufPool.pSize)[index] == 0)
 	{
-		::memcpy(m_stBufPool.pBufferPool+_index*CPoolSlotSize, _pSrc, _ulSize);
-		(m_stBufPool.pSize)[_index] = _ulSize;
+		::memcpy(m_stBufPool.pBufferPool+index*CPoolSlotSize, pSrc, ulSize);
+		(m_stBufPool.pSize)[index] = ulSize;
 		m_nItems++;
 	}
 }
 
 //////////////////////////////////////////////////////////////////////////
 //RZSemaphore类
-RZSemaphore::RZSemaphore(long _init, long _ulMax)
+RZSemaphore::RZSemaphore(long init, long ulMax)
 {
 #ifdef WIN32
 	m_hSemaphore = ::CreateSemaphore(
 		NULL,				//default security attributes
-		_init,				//initial count
-		_ulMax,			//maximum count
+		init,				//initial count
+		ulMax,			//maximum count
 		NULL);			//unnamed semaphore
 	if (m_hSemaphore == NULL)
 		Log::ERR("PlatForm SDK \'CreateSemaphore\' called failed.\tError Code: %d.\n", ::GetLastError());
@@ -215,18 +215,18 @@ RZSemaphore::~RZSemaphore()
 {
 #ifdef WIN32
 	if (m_hSemaphore != NULL)
-		CloseHandle(m_hSemaphore);
+		::CloseHandle(m_hSemaphore);
 #endif
 }
 
-void RZSemaphore::Wait(WAIT_MODE _wm /* = ENUM_SYN */, unsigned long _ulMilliSeconds /* = 0 */)
+void RZSemaphore::Wait(WAIT_MODE wm /* = ENUM_SYN */, unsigned long ulMilliSeconds /* = 0 */)
 {
 #ifdef WIN32
 	DWORD dwWaitResult;
-	if (_wm == ENUM_SYN)		//同步等待
+	if (wm == ENUM_SYN)		//同步等待
 		dwWaitResult = ::WaitForSingleObject(m_hSemaphore, INFINITE);
 	else		//_wm == ENUM_ASYN
-		dwWaitResult = ::WaitForSingleObject(m_hSemaphore, _ulMilliSeconds);
+		dwWaitResult = ::WaitForSingleObject(m_hSemaphore, ulMilliSeconds);
 	if (dwWaitResult == WAIT_FAILED)
 		Log::ERR("Platform SDK \'WaitForSingleObject\' called failed.\tError Code: %d.\n", GetLastError());
 #endif
@@ -249,6 +249,9 @@ void RZSemaphore::Release()
 RZThread::RZThread()
 	:m_ulThreadID(0)
 {
+#ifdef WIN32
+	m_hThread = NULL;
+#endif
 }
 
 RZThread::~RZThread()

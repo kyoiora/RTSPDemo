@@ -8,8 +8,7 @@
 #include "SessDescribe.h"
 #include "RTPProtocol.h"
 
-//const unsigned short CRTSPDefaultPort = 554;
-const unsigned short CRTSPDefaultPort = 8554;
+const unsigned short CRTSPDefaultPort = 554;
 
 typedef enum 
 {
@@ -114,14 +113,12 @@ public:
 private:
 	std::string		GetMethodStr(RTSP_METHOD) const;
 	RZReqLine		GetReqLineByMethod(RTSP_METHOD, int);
-
 	std::vector<RZExtraHdr> GetGeneralExtraHdr() const;
 	void GetDESCRIBEExtraHdr(std::vector<RZExtraHdr>&) const;
 	std::string GetTransHeader(int) const;
 	void GetSETUPExtraHdr(std::vector<RZExtraHdr>&, int) const;
 	void GetPLAYExtraHdr(std::vector<RZExtraHdr>&) const;
 
-	//////////////////////////////////////////////////////////////////////////
 	void ThreadProc();
 	void OnDispatchAcceptAVStream();
 	std::vector<RTSP_METHOD> GetTaskMethodList() const;
@@ -132,7 +129,6 @@ private:
 	std::map<std::string, int>					GetRTPFirstSeq() const;
 	std::map<std::string, std::string>		GetResTransFields() const;
 
-	//////////////////////////////////////////////////////////////////////////
 	void OnResponseOPTIONS();
 	void OnResponseDESCRIBE();
 	void OnResponseSETUP(int&);

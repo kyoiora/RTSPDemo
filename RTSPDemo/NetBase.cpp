@@ -13,17 +13,17 @@ std::vector<unsigned long> RZNetPort::m_vPortList;
 
 //////////////////////////////////////////////////////////////////////////
 //RZNetPort类
-RZNetPort::RZNetPort(NET_PRTTYPE _ePrtType)
+RZNetPort::RZNetPort(NET_PRTTYPE ePrtType)
 	:m_port(0),
-	 m_ePrtType(_ePrtType)
+	 m_ePrtType(ePrtType)
 {
 }
 
-RZNetPort::RZNetPort(unsigned short _port, NET_PRTTYPE _ePrtType)
-	:m_ePrtType(_ePrtType)
+RZNetPort::RZNetPort(unsigned short port, NET_PRTTYPE ePrtType)
+	:m_ePrtType(ePrtType)
 {
 	//利用指定端口值调用这个构造函数时，禁止将ePrtType设置为ENUM_UNK
-	SetPortValue(_port);
+	SetPortValue(port);
 }
 
 NET_PORTTYPE RZNetPort::GetPortType() const
@@ -38,24 +38,24 @@ NET_PORTTYPE RZNetPort::GetPortType() const
 		return ENUM_PORTTYPE_UNK;
 }
 
-bool RZNetPort::PortOccupied(unsigned long _port)
+bool RZNetPort::PortOccupied(unsigned long port)
 {
-	if (_port > 65535)
+	if (port > 65535)
 		Log::ERR("Test port is not valid.\n");
 	for (std::vector<unsigned long>::const_iterator iter = m_vPortList.begin(); 
 			iter != m_vPortList.end(); iter++)
 	{
-		if (_port == *iter)		//当前端口和其中某个已使用端口相同，表明被占用
+		if (port == *iter)		//当前端口和其中某个已使用端口相同，表明被占用
 			return true;
 	}
 	return false;
 }
 
-std::vector<unsigned long> RZNetPort::GetLocalUsedPort(NET_PRTTYPE _pt)
+std::vector<unsigned long> RZNetPort::GetLocalUsedPort(NET_PRTTYPE pt)
 {
-	if (_pt == ENUM_TCP)
+	if (pt == ENUM_TCP)
 		return GetLocalUsedTcpPort();
-	else if (_pt == ENUM_UDP)
+	else if (pt == ENUM_UDP)
 		return GetLocalUsedUdpPort();
 	else
 		return std::vector<unsigned long>();
@@ -112,17 +112,17 @@ std::vector<unsigned long> RZNetPort::GetLocalUsedUdpPort()
 	return vUdpPortList;
 }
 
-void RZNetPort::RandSelectValidPort(NET_PORTTYPE _pt)
+void RZNetPort::RandSelectValidPort(NET_PORTTYPE pt)
 {
 	if (m_ePrtType == ENUM_PRT_UNK)
 		Log::ERR("Unvalid Protocol Type. Please set protocol type first.\n");
 	//只能在注册或者动态端口中进行随机选择
-	if (_pt != ENUM_REGISTER && _pt != ENUM_DYNAMIC)
+	if (pt != ENUM_REGISTER && pt != ENUM_DYNAMIC)
 		Log::ERR("Please set a valid port type, then call this function.\n");
 
 	int randNum;
 	unsigned long rangeStart, rangeEnd;
-	if (_pt == ENUM_REGISTER)		//使用注册端口
+	if (pt == ENUM_REGISTER)		//使用注册端口
 	{
 		rangeStart = CRPRangeStart;
 		rangeEnd = CRPRangeEnd;
@@ -143,16 +143,16 @@ void RZNetPort::RandSelectValidPort(NET_PORTTYPE _pt)
 	m_port = randNum;
 }
 
-void RZNetPort::SetPortValue(unsigned short _port)
+void RZNetPort::SetPortValue(unsigned short port)
 {
 	if (m_ePrtType == ENUM_PRT_UNK)
 		Log::ERR("Unvalid Protocol Type. Please set protocol type first.\n");
 
 	UpdateSystemOccupiedPort();			//更新系统占用端口
-	if (PortOccupied(_port))			//端口被占用
+	if (PortOccupied(port))			//端口被占用
 		m_port = 0;
 	else
-		m_port = _port;
+		m_port = port;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -163,17 +163,17 @@ RZNetIPAddr::RZNetIPAddr()
 {
 }
 
-RZNetIPAddr::RZNetIPAddr(const std::string& _str)
+RZNetIPAddr::RZNetIPAddr(const std::string& str)
 {
-	if (!IPAddrLegal(_str))		//IP地址格式非法
+	if (!IPAddrLegal(str))		//IP地址格式非法
 		Log::ERR("Input an unvalid IP Address.\n");
-	InitIPAddr(_str);
+	InitIPAddr(str);
 }
 
-bool RZNetIPAddr::IPAddrLegal(const std::string& _str) const
+bool RZNetIPAddr::IPAddrLegal(const std::string& str) const
 {
 	//将点分十进制IP地址按照"."进行分割，将所有的原子字符串存入vector容器
-	std::vector<std::string> vAtomList = RZStream::StreamSplit(_str, ".");
+	std::vector<std::string> vAtomList = RZStream::StreamSplit(str, ".");
 	for (std::vector<std::string>::const_iterator iter = vAtomList.begin(); 
 			iter != vAtomList.end(); iter++)
 	{
@@ -184,20 +184,20 @@ bool RZNetIPAddr::IPAddrLegal(const std::string& _str) const
 	return true;
 }
 
-void RZNetIPAddr::SetIPAddr(const std::string& _str)
+void RZNetIPAddr::SetIPAddr(const std::string& str)
 {
-	if (!IPAddrLegal(_str))		//IP地址格式非法
+	if (!IPAddrLegal(str))		//IP地址格式非法
 		Log::ERR("Input an unvalid IP Address.\n");
-	InitIPAddr(_str);
+	InitIPAddr(str);
 }
 
 //////////////////////////////////////////////////////////////////////////
 //RZReqLine类
-RZReqLine::RZReqLine(APP_PRTTYPE _eAppPt)
+RZReqLine::RZReqLine(APP_PRTTYPE eAppPt)
 	:m_strMethod(""),
 	m_strUri("")
 {
-	switch (_eAppPt)
+	switch (eAppPt)
 	{
 	case ENUM_RTSP:	m_strVersion = "RTSP/1.0";break;
 		//...
@@ -217,8 +217,8 @@ RZExtraHdr::RZExtraHdr()
 
 //////////////////////////////////////////////////////////////////////////
 //RZReqPacket类
-RZReqPacket::RZReqPacket(APP_PRTTYPE _eAppPt)
-	:m_rLine(_eAppPt),
+RZReqPacket::RZReqPacket(APP_PRTTYPE eAppPt)
+	:m_rLine(eAppPt),
 	 m_vExtHdrList()
 {
 }

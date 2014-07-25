@@ -315,12 +315,9 @@ struct _LostPackStatis
 	unsigned long uThresHold;	//当前阀值
 	std::vector<unsigned long> vLostPack;		//存放丢失的包的序列号（转换后唯一）
 
-	//////////////////////////////////////////////////////////////////////////
-	//抖动计算
 	unsigned long ulFirSeqWallClck;		//RTCP携带的第一个墙上时钟，单位为毫秒
 	unsigned long ulFirSeqRTPStmp;		//对应的第一个RTP时间戳
 	std::vector<unsigned long> vPackDiff;		//the difference D in packet
-
 	RZSemaphore mSemaphore;
 
 	_LostPackStatis()
